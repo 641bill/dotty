@@ -113,8 +113,21 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
     val objectName = sym.owner.fullName.encode.toString.stripSuffix("$")
     val methodName = sym.name.encode.toString
 
+    import dotty.tools.dotc.core.Phases
+
+    val irType = atPhase(Phases.genBCodePhase) {
+      dotty.tools.backend.sjs.JSEncoding.toTypeRef(sym.info.finalResultType)
+    }
+    import org.scalajs.ir.Types
+    val irTypeStr = irType match {
+      // case Types.ClassRef(org.scalajs.ir.Names.BoxedUnitClass) => "V"
+      case Types.ClassRef(className) => "L" + className.nameString
+      case pr: Types.PrimRef => pr.charCode.toString
+      case Types.ArrayTypeRef(_, _) => ???
+    }
+
     val valueString = state.askableRun.sendAndWaitForAck(
-      "objectNameAndMethodName:" + objectName + ':' + methodName)
+      "objectNameAndMethodName:" + objectName + ':' + methodName + ':' + irTypeStr)
     
     if (!sym.is(Flags.Method) && sym.info == defn.UnitType)
       None

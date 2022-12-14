@@ -53,7 +53,6 @@ class AskableJSComRun(jsEnv: JSEnv, runConfig: RunConfig, input: Seq[Input]):
   nextPromise.success(("Initial promise"))
   
   private val run = jsEnv.startWithCom(input, runConfig, onMessage = { (msg: String) =>
-    println(s"Received message: $msg")
     nextPromise.success((msg))
   })
 

@@ -123,11 +123,13 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
       // case Types.ClassRef(org.scalajs.ir.Names.BoxedUnitClass) => "V"
       case Types.ClassRef(className) => "L" + className.nameString
       case pr: Types.PrimRef => pr.charCode.toString
-      case Types.ArrayTypeRef(_, _) => ???
+      case ar: Types.ArrayTypeRef => "A" + ar.displayName
     }
 
     val valueString = state.askableRun.sendAndWaitForAck(
       "objectNameAndMethodName:" + objectName + ':' + methodName + ':' + irTypeStr)
+    if (valueString == "JSError")
+      throw new ReflectiveOperationException("JSError")
     
     if (!sym.is(Flags.Method) && sym.info == defn.UnitType)
       None
@@ -164,7 +166,7 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
 
   /** Render value definition result */
   def renderVal(d: Denotation, state: State)(using Context): 
-    Either[InvocationTargetException, Option[Diagnostic]] =
+    Either[ReflectiveOperationException, Option[Diagnostic]] =
     val dcl = d.symbol.showUser
     def msg(s: String) = infoDiagnostic(s, d)
     try
@@ -172,7 +174,7 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
         if d.symbol.is(Flags.Lazy) then Some(msg(dcl))
         else valueOf(d.symbol, state).map(value => msg(s"$dcl = $value"))
       )
-    catch case e: InvocationTargetException => Left(e)
+    catch case e: ReflectiveOperationException => Left(e)
   end renderVal
 
   /** Force module initialization in the absence of members. */
@@ -181,7 +183,8 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
     def load() =
       val objectName = sym.fullName.encode.toString
       // Send a msg to the interpreter to load the module
-      state.askableRun.sendAndWaitForAck("objectName:" + objectName)
+      if (state.askableRun.sendAndWaitForAck("objectName:" + objectName) == "JSError")
+        throw new ExceptionInInitializerError("JSError")
       Nil
     try load()
     catch
@@ -189,10 +192,14 @@ private[repl] class Rendering(parentClassLoader: Option[ClassLoader] = None):
       case NonFatal(e) => List(renderError(InvocationTargetException(e), sym.denot))
 
   /** Render the stack trace of the underlying exception. */
-  def renderError(ite: InvocationTargetException | ExceptionInInitializerError, d: Denotation)(using Context): Diagnostic =
+  def renderError(ite: ReflectiveOperationException | ExceptionInInitializerError, d: Denotation)(using Context): Diagnostic =
     import dotty.tools.dotc.util.StackTraceOps._
     val cause = ite.getCause match
-      case e: ExceptionInInitializerError => e.getCause
+      case e: ExceptionInInitializerError => 
+        e.getMessage() match {
+          case "JSError" => new Throwable("")
+          case _ => e.getCause
+        }
       case e => e
     // detect
     //at repl$.rs$line$2$.<clinit>(rs$line$2:1)

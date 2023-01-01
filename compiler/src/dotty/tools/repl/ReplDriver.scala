@@ -46,6 +46,7 @@ import java.nio.file.Paths
 import java.io.File
 import scala.concurrent._
 import concurrent.duration._
+import java.lang.reflect.InvocationTargetException
 
 class AskableJSComRun(jsEnv: JSEnv, runConfig: RunConfig, input: Seq[Input]):
 
@@ -53,7 +54,15 @@ class AskableJSComRun(jsEnv: JSEnv, runConfig: RunConfig, input: Seq[Input]):
   nextPromise.success(("Initial promise"))
   
   private val run = jsEnv.startWithCom(input, runConfig, onMessage = { (msg: String) =>
-    nextPromise.success((msg))
+    msg.charAt(0) match {
+      case 'E' => msg.charAt(1) match {
+        case 'C' => ???
+        case 'S' => ???
+        case 'L' | 'V' => nextPromise.success("JSError")
+      }
+      case _ =>
+        nextPromise.success((msg))
+    }
   })
 
   def sendAndAck(msg: String): Future[String] =
@@ -140,6 +149,7 @@ class ReplDriver(settings: Array[String],
     
     val jsEnv: JSEnv = new NodeJSEnv()
     val path = Paths.get(jsToRun)
+    // val script = Input.Script(path)
     val script = Input.CommonJSModule(path)
     val input = Seq(script)
     val config = RunConfig()
@@ -206,6 +216,14 @@ class ReplDriver(settings: Array[String],
       } catch {
         case _: EndOfFileException |
             _: UserInterruptException => // Ctrl+D or Ctrl+C
+          // Delete all the generated class files, tasty files and sjsir files
+          val localFiles = Paths.get(sjsirDir).toFile.listFiles
+          val classFiles = localFiles.filter(_.getName.endsWith(".class"))
+          val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
+          val sjsirFiles = localFiles.filter(_.getName.endsWith(".sjsir"))
+          classFiles.foreach(_.delete)
+          tastyFiles.foreach(_.delete)
+          sjsirFiles.foreach(_.delete)    
           Quit
       }
     }
@@ -442,8 +460,13 @@ class ReplDriver(settings: Array[String],
           case Right(Some(v)) =>
             buf += v
           case Left(e) =>
-            buf += rendering.renderError(e, d)
-            failedInit = true
+            e.getMessage() match {
+              case "JSError" =>
+                failedInit = true
+              case _ =>
+                buf += rendering.renderError(e, d)
+                failedInit = true
+            }
           case _ =>
         buf.toList
 

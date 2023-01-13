@@ -106,7 +106,12 @@ case class State(objectIndex: Int,
   def validObjectIndexes = (1 to objectIndex).filterNot(invalidObjectIndexes.contains(_))
   
 val sjsirDir = System.getProperty("user.dir")
-val jsToRun = System.getProperty("user.dir").split('/').dropRight(1).mkString("/") + "/repl-interpreter/target/scala-2.13/repl-interpreter-fastopt/main.js"
+val separatedPath = sjsirDir.split('/')
+val jsToRun = 
+  if (separatedPath.last == "dotty")
+    separatedPath.dropRight(1).mkString("/") + "/repl-interpreter/target/scala-2.13/repl-interpreter-fastopt/main.js"
+  else
+    separatedPath.dropRight(2).mkString("/") + "/repl-interpreter/target/scala-2.13/repl-interpreter-fastopt/main.js"
 /** Main REPL instance, orchestrating input, compilation and presentation */
 class ReplDriver(settings: Array[String],
                  out: PrintStream = Console.out,
@@ -123,8 +128,12 @@ class ReplDriver(settings: Array[String],
     rootCtx.setSetting(rootCtx.settings.YcookComments, true)
     rootCtx.setSetting(rootCtx.settings.YreadComments, true)
     rootCtx.setSetting(rootCtx.settings.scalajs, true) // The line that enables Scala.js and outputs sjsir files
-    // val classPathToAdd = List("-classpath",hardcoded)
-    setupRootCtx(this.settings, rootCtx)
+    val hardcoded = "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-library_2.13/1.12.0/scalajs-library_2.13-1.12.0.jar:" +
+      "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.8/scala-library-2.13.8.jar:" +
+      "/Users/bill641/sp/dotty/out/bootstrap/scala3-library-bootstrappedJS/scala-3.2.2-RC1-bin-SNAPSHOT-nonbootstrapped/scala3-library_sjs1_3-3.2.2-RC1-bin-SNAPSHOT.jar:" +
+      "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-javalib/1.12.0/scalajs-javalib-1.12.0.jar"
+    val classPathToAdd = List("-classpath",hardcoded)
+    setupRootCtx(this.settings ++ classPathToAdd, rootCtx)
   }
 
   private def setupRootCtx(settings: Array[String], rootCtx: Context) = {

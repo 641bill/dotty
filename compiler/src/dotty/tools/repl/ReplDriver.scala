@@ -146,6 +146,9 @@ class ReplDriver(settings: Array[String],
     val sjsirDirPath = Paths.get(sjsirDir)
     val sjsirFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".sjsir"))
     sjsirFiles.foreach(_.delete)
+    // Delete the js files from the previous run
+    val jsFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".js"))
+    jsFiles.foreach(_.delete)
     
     val jsEnv: JSEnv = new NodeJSEnv()
     val path = Paths.get(jsToRun)
@@ -221,9 +224,11 @@ class ReplDriver(settings: Array[String],
           val classFiles = localFiles.filter(_.getName.endsWith(".class"))
           val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
           val sjsirFiles = localFiles.filter(_.getName.endsWith(".sjsir"))
+          val jsFiles = localFiles.filter(_.getName.endsWith(".js"))
           classFiles.foreach(_.delete)
           tastyFiles.foreach(_.delete)
-          sjsirFiles.foreach(_.delete)    
+          sjsirFiles.foreach(_.delete)
+          jsFiles.foreach(_.delete)  
           Quit
       }
     }

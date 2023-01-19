@@ -818,11 +818,17 @@ object Build {
 
       val `scala3-library-bootstrappedJS-path` = (`scala3-library-bootstrappedJS`/ Compile / packageBin).value.getAbsolutePath()
       val `scalajs-dependency-path` = (`scala3-library-bootstrappedJS` / Compile / dependencyClasspath).value.map(_.data.getAbsolutePath).mkString(":")
+      val `scala3-library-bootstrapped-path` = (`scala3-library-bootstrapped` / Compile / packageBin).value.getAbsolutePath()
+      val `scala3-library-path` = (`scala3-library` / Compile / packageBin).value.getAbsolutePath()
+      val `scalajs-javalib-path` = findArtifactPath((`scala3-library-bootstrappedJS` / Compile / externalDependencyClasspath).value, "scalajs-javalib")
 
       Seq(
         "-bootclasspath", 
         `scala3-library-bootstrappedJS-path` + 
-        ":" + `scalajs-dependency-path`,
+        ":" + `scalajs-dependency-path` +
+        ":" + `scala3-library-bootstrapped-path` +
+        ":" + `scala3-library-path` +
+        ":" + `scalajs-javalib-path`,
       )
     }
   )

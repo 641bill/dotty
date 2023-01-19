@@ -122,18 +122,19 @@ class ReplDriver(settings: Array[String],
    */
   override def sourcesRequired: Boolean = false
   
+  val hardcoded = "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-library_2.13/1.12.0/scalajs-library_2.13-1.12.0.jar:" +
+    "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.8/scala-library-2.13.8.jar:" +
+    "/Users/bill641/sp/dotty/out/bootstrap/scala3-library-bootstrappedJS/scala-3.2.2-RC1-bin-SNAPSHOT-nonbootstrapped/scala3-library_sjs1_3-3.3.0-RC1-bin-SNAPSHOT.jar:" +
+    "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-javalib/1.12.0/scalajs-javalib-1.12.0.jar:" +
+    "/Users/bill641/sp/dotty/library/../out/bootstrap/scala3-library-bootstrapped/scala-3.3.0-RC1-bin-SNAPSHOT-nonbootstrapped/scala3-library_3-3.3.0-RC1-bin-SNAPSHOT.jar"
   /** Create a fresh and initialized context with IDE mode enabled */
   private def initialCtx(settings: List[String]) = {
     val rootCtx = initCtx.fresh.addMode(Mode.ReadPositions | Mode.Interactive)
     rootCtx.setSetting(rootCtx.settings.YcookComments, true)
     rootCtx.setSetting(rootCtx.settings.YreadComments, true)
     rootCtx.setSetting(rootCtx.settings.scalajs, true) // The line that enables Scala.js and outputs sjsir files
-    val hardcoded = "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-library_2.13/1.12.0/scalajs-library_2.13-1.12.0.jar:" +
-      "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.8/scala-library-2.13.8.jar:" +
-      "/Users/bill641/sp/dotty/out/bootstrap/scala3-library-bootstrappedJS/scala-3.2.2-RC1-bin-SNAPSHOT-nonbootstrapped/scala3-library_sjs1_3-3.2.2-RC1-bin-SNAPSHOT.jar:" +
-      "/Users/bill641/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/org/scala-js/scalajs-javalib/1.12.0/scalajs-javalib-1.12.0.jar"
     val classPathToAdd = List("-classpath",hardcoded)
-    setupRootCtx(this.settings ++ classPathToAdd, rootCtx)
+    setupRootCtx((classPathToAdd ++ this.settings.dropRight(2)).toArray, rootCtx)
   }
 
   private def setupRootCtx(settings: Array[String], rootCtx: Context) = {
@@ -155,6 +156,9 @@ class ReplDriver(settings: Array[String],
     val sjsirDirPath = Paths.get(sjsirDir)
     val sjsirFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".sjsir"))
     sjsirFiles.foreach(_.delete)
+    // Delete the js files from the previous run
+    val jsFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".js"))
+    jsFiles.foreach(_.delete)
     
     val jsEnv: JSEnv = new NodeJSEnv()
     val path = Paths.get(jsToRun)
@@ -230,9 +234,11 @@ class ReplDriver(settings: Array[String],
           val classFiles = localFiles.filter(_.getName.endsWith(".class"))
           val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
           val sjsirFiles = localFiles.filter(_.getName.endsWith(".sjsir"))
+          val jsFiles = localFiles.filter(_.getName.endsWith(".js"))
           classFiles.foreach(_.delete)
           tastyFiles.foreach(_.delete)
-          sjsirFiles.foreach(_.delete)    
+          sjsirFiles.foreach(_.delete)
+          jsFiles.foreach(_.delete)
           Quit
       }
     }
@@ -251,7 +257,8 @@ class ReplDriver(settings: Array[String],
     finally terminal.close()
   }
 
-  final def run(input: String)(using state: State): State = runBody {
+  final def run(input: String)(using initialState: State = initialState): State = runBody {
+    initialState.askableRun.sendAndWaitForAck("classpath:" + hardcoded)
     interpret(ParseResult.complete(input))
   }
 

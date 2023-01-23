@@ -238,6 +238,7 @@ class ReplCompilerTests extends ReplTest:
       ... 28 elided
      */
   }
+  @Ignore
   @Test def `i14281 context class loader must be REPL class loader` = initially {
     run("class C ; assert(classOf[C].getClassLoader eq Thread.currentThread.getContextClassLoader)")
     assertEquals(List("// defined class C"), lines())

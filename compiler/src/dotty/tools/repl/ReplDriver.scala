@@ -262,6 +262,12 @@ class ReplDriver(settings: Array[String],
     interpret(ParseResult.complete(input))
   }
 
+  final def runScripted(input: String, runAlready: Boolean)(using initialState: State = initialState): State = runBody {
+    if !runAlready then
+      initialState.askableRun.sendAndWaitForAck("classpath:" + hardcoded)
+    interpret(ParseResult.complete(input))
+  }
+
   final def runQuietly(input: String)(using State): State = runBody {
     val parsed = ParseResult(input)
     interpret(parsed, quiet = true)

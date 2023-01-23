@@ -47,10 +47,24 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
 
   def testScript(name: => String, lines: List[String], scriptFile: Option[JFile] = None): Unit = {
     val prompt = "scala>"
+    val runAlready = java.util.concurrent.atomic.AtomicBoolean(false)
 
     def evaluate(state: State, input: String) =
       try {
         val nstate = run(input.drop(prompt.length))(using state)
+        val out = input + EOL + storedOutput()
+        (out, nstate)
+      }
+      catch {
+        case ex: Throwable =>
+          System.err.println(s"failed while running script: $name, on:\n$input")
+          throw ex
+      }
+
+    def evaluateScripted(state: State, input: String) =
+      try {
+        val nstate = runScripted(input.drop(prompt.length), runAlready.get())(using state)
+        runAlready.set(true)
         val out = input + EOL + storedOutput()
         (out, nstate)
       }
@@ -79,7 +93,7 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
 
       val buf = new ArrayBuffer[String]
       inputRes.foldLeft(initialState) { (state, input) =>
-        val (out, nstate) = evaluate(state, input)
+        val (out, nstate) = evaluateScripted(state, input)
         out.linesIterator.foreach(buf.append)
         nstate
       }

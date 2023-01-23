@@ -432,7 +432,7 @@ class ReplDriver(settings: Array[String],
     }
   }
 
-  var loaded: Set[File] = Set.empty
+  val loaded: mutable.Set[File] = mutable.Set.empty
 
   private def renderDefinitions(tree: tpd.Tree, newestWrapper: Name)(using state: State): (State, Seq[Diagnostic]) = {
     given Context = state.context
@@ -467,9 +467,12 @@ class ReplDriver(settings: Array[String],
         info.bounds.hi.typeMembers.filter(_.symbol.info.isTypeAlias)
       
       // Send msg to load sjsir files (only the new files)
-      val sjsirFiles = getListOfFiles(sjsirDir)
-      state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFiles.filterNot(loaded.contains(_)).
-        map(_.getAbsolutePath()).filter(_.endsWith(".sjsir")).mkString(","))
+      val dirFiles = getListOfFiles(sjsirDir)
+      val sjsirFiles = dirFiles.filterNot(loaded.contains(_)).filter(_.getAbsolutePath().endsWith(".sjsir"))
+      val sjsirFilePaths = sjsirFiles.map(_.getAbsolutePath())
+      println(s"Loaded sjsir files: $loaded")
+      println(s"Sending sjsir files: $sjsirFilePaths")
+      state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFilePaths.mkString(","))
       loaded ++= sjsirFiles
 
       // The wrapper object may fail to initialize if the rhs of a ValDef throws.

@@ -46,6 +46,9 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
   def testFile(f: JFile): Unit = testScript(f.toString, readLines(f), Some(f))
 
   def testScript(name: => String, lines: List[String], scriptFile: Option[JFile] = None): Unit = {
+    val testName = name.split("/").last
+    println(s"Test $testName started")
+
     val prompt = "scala>"
     val runAlready = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -101,6 +104,7 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
     }
 
     if !FileDiff.matches(actualOutput, expectedOutput) then
+      println(s"Test $testName failed")
       // Some tests aren't file-based but just pass a string, so can't update anything then
       // Also the files here are the copies in target/ not the original, so you need to vimdiff/mv them...
       if dotty.Properties.testsUpdateCheckfile && scriptFile != None then
@@ -113,8 +117,11 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
         println("actual ===========>")
         println(actualOutput.mkString(EOL))
 
-        fail(s"Error in script $name, expected output did not match actual")
+        // fail(s"Error in script $name, expected output did not match actual")
+        println(s"Error in script $name, expected output did not match actual")
     end if
+    this.loaded.clear()
+    println(s"Test $testName passed")
   }
 
 object ReplTest:

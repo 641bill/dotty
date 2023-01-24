@@ -136,7 +136,7 @@ class ReplDriver(settings: Array[String],
     rootCtx.setSetting(rootCtx.settings.YreadComments, true)
     rootCtx.setSetting(rootCtx.settings.scalajs, true) // The line that enables Scala.js and outputs sjsir files
     val classPathToAdd = List("-classpath",hardcoded)
-    setupRootCtx((classPathToAdd ++ this.settings.dropRight(2)).toArray, rootCtx)
+    setupRootCtx((classPathToAdd ++ this.settings.dropRight(2)).toArray ++ settings, rootCtx)
   }
 
   private def setupRootCtx(settings: Array[String], rootCtx: Context) = {

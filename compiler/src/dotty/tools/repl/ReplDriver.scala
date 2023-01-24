@@ -265,6 +265,7 @@ class ReplDriver(settings: Array[String],
   final def runScripted(input: String, runAlready: Boolean)(using initialState: State = initialState): State = runBody {
     if !runAlready then
       initialState.askableRun.sendAndWaitForAck("classpath:" + hardcoded)
+    println(s"Running $input")
     interpret(ParseResult.complete(input))
   }
 
@@ -472,8 +473,9 @@ class ReplDriver(settings: Array[String],
       val sjsirFilePaths = sjsirFiles.map(_.getAbsolutePath())
       println(s"Loaded sjsir files: $loaded")
       println(s"Sending sjsir files: $sjsirFilePaths")
-      state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFilePaths.mkString(","))
-      loaded ++= sjsirFiles
+      if sjsirFilePaths.nonEmpty then
+        state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFilePaths.mkString(","))
+        loaded ++= sjsirFiles
 
       // The wrapper object may fail to initialize if the rhs of a ValDef throws.
       // In that case, don't attempt to render any subsequent vals, and mark this

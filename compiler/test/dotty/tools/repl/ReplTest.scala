@@ -43,11 +43,15 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
   extension [A](state: State)
     infix def andThen(op: State ?=> A): A = op(using state)
 
+  val testCounter = new java.util.concurrent.atomic.AtomicInteger(0)
+  val passedCounter = new java.util.concurrent.atomic.AtomicInteger(0)
+
   def testFile(f: JFile): Unit = testScript(f.toString, readLines(f), Some(f))
 
   def testScript(name: => String, lines: List[String], scriptFile: Option[JFile] = None): Unit = {
     val testName = name.split("/").last
     println(s"Test $testName started")
+    testCounter.incrementAndGet()
 
     val prompt = "scala>"
     val runAlready = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -119,9 +123,12 @@ extends ReplDriver(options, new PrintStream(out, true, StandardCharsets.UTF_8.na
 
         // fail(s"Error in script $name, expected output did not match actual")
         println(s"Error in script $name, expected output did not match actual")
+    else 
+      println(s"Test $testName passed")
+      passedCounter.incrementAndGet()
     end if
     this.loaded.clear()
-    println(s"Test $testName passed")
+    println(s"Passed ${passedCounter.get()} out of ${testCounter.get()} tests")
   }
 
 object ReplTest:

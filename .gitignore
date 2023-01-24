@@ -96,3 +96,5 @@ content-contributors.css
 *.sjsir
 *.js
 *.txt
+ScriptedTests
+ShadowingTests

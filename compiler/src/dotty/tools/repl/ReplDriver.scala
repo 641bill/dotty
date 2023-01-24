@@ -54,15 +54,17 @@ class AskableJSComRun(jsEnv: JSEnv, runConfig: RunConfig, input: Seq[Input]):
   nextPromise.success(("Initial promise"))
   
   private val run = jsEnv.startWithCom(input, runConfig, onMessage = { (msg: String) =>
-    msg.charAt(0) match {
-      case 'E' => msg.charAt(1) match {
-        case 'C' => ???
-        case 'S' => ???
-        case 'L' | 'V' => nextPromise.success("JSError")
+    if msg == "" then nextPromise.success("")
+    else
+      msg.charAt(0) match {
+        case 'E' => msg.charAt(1) match {
+          case 'C' => ???
+          case 'S' => ???
+          case 'L' | 'V' => nextPromise.success("JSError")
+        }
+        case _ =>
+          nextPromise.success(msg)
       }
-      case _ =>
-        nextPromise.success((msg))
-    }
   })
 
   def sendAndAck(msg: String): Future[String] =
@@ -186,12 +188,16 @@ class ReplDriver(settings: Array[String],
         AbstractFile.getDirectory(Directory(sjsirDir))) // used to be new VirtualDirectory("<REPL compilation output>")
     compiler = new ReplCompiler
     rendering = new Rendering(classLoader)
+    if (loaded != null)
+      loaded.clear()
   }
 
   private var rootCtx: Context = _
   private var shouldStart: Boolean = _
   private var compiler: ReplCompiler = _
   protected var rendering: Rendering = _
+  val loaded: mutable.Set[File] = mutable.Set.empty
+  var classPathJars: String = ""
 
   // initialize the REPL session as part of the constructor so that once `run`
   // is called, we're in business
@@ -251,7 +257,7 @@ class ReplDriver(settings: Array[String],
       else loop(using interpret(res))()
     }
 
-    val classPathJars = initialState.context.settings.bootclasspath.value(using initialState.context)
+    classPathJars = initialState.context.settings.bootclasspath.value(using initialState.context)
 
     try 
       initialState.askableRun.sendAndWaitForAck("classpath:" + classPathJars)
@@ -261,13 +267,15 @@ class ReplDriver(settings: Array[String],
 
   final def run(input: String)(using initialState: State = initialState): State = runBody {
     initialState.askableRun.sendAndWaitForAck("classpath:" + hardcoded)
+    classPathJars = hardcoded
     interpret(ParseResult.complete(input))
   }
 
   final def runScripted(input: String, runAlready: Boolean)(using initialState: State = initialState): State = runBody {
     if !runAlready then
       initialState.askableRun.sendAndWaitForAck("classpath:" + hardcoded)
-    println(s"Running $input")
+      classPathJars = hardcoded
+    // println(s"Running $input")
     interpret(ParseResult.complete(input))
   }
 
@@ -435,8 +443,6 @@ class ReplDriver(settings: Array[String],
     }
   }
 
-  val loaded: mutable.Set[File] = mutable.Set.empty
-
   private def renderDefinitions(tree: tpd.Tree, newestWrapper: Name)(using state: State): (State, Seq[Diagnostic]) = {
     given Context = state.context
 
@@ -473,8 +479,8 @@ class ReplDriver(settings: Array[String],
       val dirFiles = getListOfFiles(sjsirDir)
       val sjsirFiles = dirFiles.filterNot(loaded.contains(_)).filter(_.getAbsolutePath().endsWith(".sjsir"))
       val sjsirFilePaths = sjsirFiles.map(_.getAbsolutePath())
-      println(s"Loaded sjsir files: $loaded")
-      println(s"Sending sjsir files: $sjsirFilePaths")
+      // println(s"Loaded sjsir files: $loaded")
+      // println(s"Sending sjsir files: $sjsirFilePaths")
       if sjsirFilePaths.nonEmpty then
         state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFilePaths.mkString(","))
         loaded ++= sjsirFiles
@@ -570,7 +576,9 @@ class ReplDriver(settings: Array[String],
         out.println("Resetting REPL state.")
 
       resetToInitial(tokens)
-      initialState
+      val initState = initialState
+      initState.askableRun.sendAndWaitForAck("classpath:" + classPathJars)
+      initState
 
     case Imports =>
       for {

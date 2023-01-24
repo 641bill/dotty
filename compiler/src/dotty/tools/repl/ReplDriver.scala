@@ -54,15 +54,17 @@ class AskableJSComRun(jsEnv: JSEnv, runConfig: RunConfig, input: Seq[Input]):
   nextPromise.success(("Initial promise"))
   
   private val run = jsEnv.startWithCom(input, runConfig, onMessage = { (msg: String) =>
-    msg.charAt(0) match {
-      case 'E' => msg.charAt(1) match {
-        case 'C' => ???
-        case 'S' => ???
-        case 'L' | 'V' => nextPromise.success("JSError")
+    if msg == "" then nextPromise.success("")
+    else
+      msg.charAt(0) match {
+        case 'E' => msg.charAt(1) match {
+          case 'C' => ???
+          case 'S' => ???
+          case 'L' | 'V' => nextPromise.success("JSError")
+        }
+        case _ =>
+          nextPromise.success((msg))
       }
-      case _ =>
-        nextPromise.success((msg))
-    }
   })
 
   def sendAndAck(msg: String): Future[String] =
@@ -142,12 +144,14 @@ class ReplDriver(settings: Array[String],
 
   /** the initial, empty state of the REPL session */
   final def initialState: State = {
-    // Delete the sjsir files from the previous run
-    val sjsirDirPath = Paths.get(sjsirDir)
-    val sjsirFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".sjsir"))
+    val localFiles = Paths.get(sjsirDir).toFile.listFiles
+    val classFiles = localFiles.filter(_.getName.endsWith(".class"))
+    val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
+    val sjsirFiles = localFiles.filter(_.getName.endsWith(".sjsir"))
+    val jsFiles = localFiles.filter(_.getName.endsWith(".js"))
+    classFiles.foreach(_.delete)
+    tastyFiles.foreach(_.delete)
     sjsirFiles.foreach(_.delete)
-    // Delete the js files from the previous run
-    val jsFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".js"))
     jsFiles.foreach(_.delete)
     
     val jsEnv: JSEnv = new NodeJSEnv()
@@ -174,12 +178,16 @@ class ReplDriver(settings: Array[String],
         AbstractFile.getDirectory(Directory(sjsirDir))) // used to be new VirtualDirectory("<REPL compilation output>")
     compiler = new ReplCompiler
     rendering = new Rendering(classLoader)
+    if (loaded != null)
+      loaded.clear()
   }
 
   private var rootCtx: Context = _
   private var shouldStart: Boolean = _
   private var compiler: ReplCompiler = _
   protected var rendering: Rendering = _
+  val loaded: mutable.Set[File] = mutable.Set.empty
+  var classPathJars: String = ""
 
   // initialize the REPL session as part of the constructor so that once `run`
   // is called, we're in business
@@ -219,7 +227,7 @@ class ReplDriver(settings: Array[String],
       } catch {
         case _: EndOfFileException |
             _: UserInterruptException => // Ctrl+D or Ctrl+C
-          // Delete all the generated class files, tasty files and sjsir files
+          // Delete all the generated class files, tasty files, sjsir files and js files
           val localFiles = Paths.get(sjsirDir).toFile.listFiles
           val classFiles = localFiles.filter(_.getName.endsWith(".class"))
           val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
@@ -239,7 +247,7 @@ class ReplDriver(settings: Array[String],
       else loop(using interpret(res))()
     }
 
-    val classPathJars = initialState.context.settings.bootclasspath.value(using initialState.context)
+    classPathJars = initialState.context.settings.bootclasspath.value(using initialState.context)
 
     try 
       initialState.askableRun.sendAndWaitForAck("classpath:" + classPathJars)
@@ -415,8 +423,6 @@ class ReplDriver(settings: Array[String],
     }
   }
 
-  var loaded: Set[File] = Set.empty
-
   private def renderDefinitions(tree: tpd.Tree, newestWrapper: Name)(using state: State): (State, Seq[Diagnostic]) = {
     given Context = state.context
 
@@ -450,10 +456,12 @@ class ReplDriver(settings: Array[String],
         info.bounds.hi.typeMembers.filter(_.symbol.info.isTypeAlias)
       
       // Send msg to load sjsir files (only the new files)
-      val sjsirFiles = getListOfFiles(sjsirDir)
-      state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFiles.filterNot(loaded.contains(_)).
-        map(_.getAbsolutePath()).filter(_.endsWith(".sjsir")).mkString(","))
-      loaded ++= sjsirFiles
+      val dirFiles = getListOfFiles(sjsirDir)
+      val sjsirFiles = dirFiles.filterNot(loaded.contains(_)).filter(_.getAbsolutePath().endsWith(".sjsir"))
+      val sjsirFilePaths = sjsirFiles.map(_.getAbsolutePath())
+      if sjsirFilePaths.nonEmpty then
+        state.askableRun.sendAndWaitForAck("irfiles:" + sjsirFilePaths.mkString(","))
+        loaded ++= sjsirFiles
 
       // The wrapper object may fail to initialize if the rhs of a ValDef throws.
       // In that case, don't attempt to render any subsequent vals, and mark this
@@ -546,7 +554,9 @@ class ReplDriver(settings: Array[String],
         out.println("Resetting REPL state.")
 
       resetToInitial(tokens)
-      initialState
+      val initState = initialState
+      initState.askableRun.sendAndWaitForAck("classpath:" + classPathJars)
+      initState
 
     case Imports =>
       for {

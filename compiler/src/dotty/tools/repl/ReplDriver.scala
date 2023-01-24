@@ -152,12 +152,14 @@ class ReplDriver(settings: Array[String],
 
   /** the initial, empty state of the REPL session */
   final def initialState: State = {
-    // Delete the sjsir files from the previous run
-    val sjsirDirPath = Paths.get(sjsirDir)
-    val sjsirFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".sjsir"))
+    val localFiles = Paths.get(sjsirDir).toFile.listFiles
+    val classFiles = localFiles.filter(_.getName.endsWith(".class"))
+    val tastyFiles = localFiles.filter(_.getName.endsWith(".tasty"))
+    val sjsirFiles = localFiles.filter(_.getName.endsWith(".sjsir"))
+    val jsFiles = localFiles.filter(_.getName.endsWith(".js"))
+    classFiles.foreach(_.delete)
+    tastyFiles.foreach(_.delete)
     sjsirFiles.foreach(_.delete)
-    // Delete the js files from the previous run
-    val jsFiles = sjsirDirPath.toFile.listFiles.filter(_.getName.endsWith(".js"))
     jsFiles.foreach(_.delete)
     
     val jsEnv: JSEnv = new NodeJSEnv()
